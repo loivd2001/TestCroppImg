@@ -101,6 +101,11 @@
                 class="preview__cropper"
                 style="width: 80px; height: 80px; margin-right: 8px"
               />
+              <img
+                v-else-if="cropDataList[index] && cropDataList[index].url"
+                :src="cropDataList[index].url"
+                class="item_action"
+              />
               <img v-else :src="item.url" class="item_action" />
             </div>
           </div>
