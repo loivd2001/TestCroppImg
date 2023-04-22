@@ -28,9 +28,11 @@
                 <vue-cropper
                   style="height: 320px"
                   ref="cropper"
-                  :aspectRatio="9 / 9"
+                  :aspectRatio="1/1"
+                  :initialAspectRatio="1/1"
                   :src="arrayImg[activeIndex]?.url"
-                  preview=".preview__cropper"
+                  :zoomOnTouch="false"
+                  :zoomOnWheel="false"
                   @ready="onReady"
                   @cropend="onCropEnd"
                 />
@@ -95,18 +97,17 @@
               v-for="(item, index) in arrayImg"
               :key="index"
               @click.prevent="onChangePreviewImage(item, index)"
+              :class="activeIndex === index
+                ? 'wrapper-preview active-preview'
+                : 'wrapper-preview no-active-preview'"
             >
-              <div
-                v-if="activeIndex === index"
-                class="preview__cropper"
-                style="width: 80px; height: 80px; margin-right: 8px"
-              />
-              <img
-                v-else-if="cropDataList[index] && cropDataList[index].url"
-                :src="cropDataList[index].url"
-                class="item_action"
-              />
-              <img v-else :src="item.url" class="item_action" />
+              <div :class="activeIndex === index ? 'preview__cropper' : ''">
+                <img
+                  v-if="cropDataList[index] && cropDataList[index].url"
+                  :src="cropDataList[index].url"
+                />
+                <img v-else :src="item.url" />
+              </div>
             </div>
           </div>
         </div>
@@ -459,7 +460,7 @@
             // Set crop file info
             this.cropDataList = this.cropDataList.map((item, i) => {
               if (i === index) {
-                item.url = cropCanvas.toDataURL();
+                item.url = cropCanvas.toDataURL(imageInfo.type);
                 item.file = fileInfo;
               }
 
@@ -467,7 +468,6 @@
             });
           },
           imageInfo.type,
-          1,
         );
       },
 
@@ -498,7 +498,7 @@
       &__wrapper-item-img{
         display: flex;
         justify-content: center;
-        margin-top: 24px;
+        margin-top: 20px;
       }
       &__wrapper {
         display: flex;
@@ -598,21 +598,20 @@
       }
     }
   }
-  
-  .item_action {
-    width: 80px;
-    height: 80px;
-    display: block;
-    object-fit: cover;
-    border: 2px solid rgb(56, 53, 53);
-    margin-right: 8px;
+
+  .wrapper-preview {
+    img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+    }
+
+    &.active-preview {
+      border: 4px solid red;
+    }
+
+    &.no-active-preview {
+      border: 2px solid rgb(56, 53, 53);
+    }
   }
-  
-  .preview__cropper {
-    border: 4px solid red;
-    width: 100%;
-    height: calc(372px * (9 / 16));
-    overflow: hidden;
-  }
-  </style>
-  
+</style>
