@@ -1,8 +1,8 @@
 <template>
-    <v-dialog v-model="dialog" fullscreen transition="dialog-bottom-transition">
+    <v-dialog v-model="dialogFlag" fullscreen persistent transition="dialog-bottom-transition">
       <v-card class="cropper-img">
         <v-toolbar dark color="primary" class="cropper-img__header">
-          <v-btn  @click="dialog = false">
+          <v-btn  @click="onCloseDialog">
             Close
           </v-btn>
           <v-spacer></v-spacer>
@@ -11,7 +11,7 @@
           <div class="cropper-img__content__wrapper">
             <div
               class="cropper-img__content__wrapper__back-btn"
-              @click="handleBackAndNext(arrayImg, false)"
+              @click="onBackImage(activeIndex)"
             >
               <v-icon>mdi-chevron-left</v-icon>
             </div>
@@ -19,7 +19,7 @@
               <div
                 class="cropper-img__content__wrapper__copper-area__name-img text--primary"
               >
-                {{ `${activeIndex + 1} / ${arrayImg?.length}` }}
+                {{ `${activeIndex + 1} / ${arrayImg.length}` }}
                 <span class="ml-4 text--secondary">
                   {{ `${arrayImg[activeIndex]?.fileName}` }}</span
                 >
@@ -28,18 +28,17 @@
                 <vue-cropper
                   style="height: 320px"
                   ref="cropper"
-                  :aspect-ratio="9 / 9"
-                  :auto-crop-area="1"
+                  :aspectRatio="9 / 9"
                   :src="arrayImg[activeIndex]?.url"
                   preview=".preview__cropper"
-                  @ready="setCropData(activeIndex)"
-                  @crop="change"
+                  @ready="onReady"
+                  @cropend="onCropEnd"
                 />
               </div>
             </section>
             <div
               class="cropper-img__content__wrapper__next-btn"
-              @click="handleBackAndNext(arrayImg, true)"
+              @click="onNextImage(activeIndex)"
             >
               <v-icon>mdi-chevron-right</v-icon>
             </div>
@@ -49,7 +48,7 @@
               outlined
               color="black"
               class="cropper-img__content__wrapper-btn-action__btn-action-item"
-              @click.prevent="reset"
+              @click.prevent="onResetCropInfo"
             >
               reset
             </v-btn>
@@ -58,7 +57,7 @@
                 color="secondary"
                 class="cropper-img__content__wrapper-btn-action__zoom-img__btn-item"
                 dark
-                @click.prevent="zoom(0.2)"
+                @click.prevent="onZoom(0.2)"
                 ><v-icon dark> mdi-magnify-plus-outline </v-icon>
                 zomm in
               </v-btn>
@@ -66,7 +65,7 @@
                 color="secondary"
                 class="cropper-img__content__wrapper-btn-action__zoom-img__btn-item"
                 dark
-                @click.prevent="zoom(-0.2)"
+                @click.prevent="onZoom(-0.2)"
               >
                 <v-icon dark> mdi-magnify-minus-outline </v-icon
                 >zomm out
@@ -77,7 +76,7 @@
                 color="secondary"
                 class="cropper-img__content__wrapper-btn-action__rotate-img__btn-action-item"
                 dark
-                @click.prevent="rotate(-45)"
+                @click.prevent="onRotate(-45)"
               >
                 <v-icon dark> mdi-restore </v-icon> rotate left
               </v-btn>
@@ -85,7 +84,7 @@
                 color="secondary"
                 class="cropper-img__content__wrapper-btn-action__rotate-img__btn-action-item"
                 dark
-                @click.prevent="rotate(45)"
+                @click.prevent="onRotate(45)"
               >
                 <v-icon dark> mdi-reload </v-icon>rotate right
               </v-btn>
@@ -95,35 +94,28 @@
             <div
               v-for="(item, index) in arrayImg"
               :key="index"
-              @click.prevent="handleItem(item, index)"
+              @click.prevent="onChangePreviewImage(item, index)"
             >
               <div
                 v-if="activeIndex === index"
                 class="preview__cropper"
                 style="width: 80px; height: 80px; margin-right: 8px"
               />
-              <img
-                v-else-if="cropImgs.some((item) => item.index === index)"
-                :src="cropImgs.find((item) => item.index === index).url"
-                class="item_action"
-              />
-              <img v-else :src="arrayImg[index].url" class="item_action" />
+              <img v-else :src="item.url" class="item_action" />
             </div>
           </div>
         </div>
         <div class="cropper-img__actions">
           <v-btn
             class="cropper-img__actions__btn-cancel"
-            @click="dialog = false"
-            >Cancel</v-btn
-          >
+            @click="onCloseDialog"
+          >Cancel</v-btn>
           <v-btn
             color="#4CAF50"
             dark
             class="cropper-img__actions__btn-submit"
-            @click="ClickEmitImg"
-            >Save</v-btn
-          >
+            @click="onSaveImage"
+          >Save</v-btn>
         </div>
       </v-card>
     </v-dialog>
@@ -138,7 +130,7 @@
       VueCropper,
     },
     props: {
-      value: {
+      showDialogFlag: {
         type: Boolean,
         default: false,
       },
@@ -147,159 +139,338 @@
         default: () => [],
         require: true,
       },
+      saveFunc: {
+        type: Function,
+        default: () => {},
+        require: true,
+      },
     },
   
     data() {
       return {
-        data: null,
         activeIndex: 0,
-        dataUrlClick: [],
-        cropImgs: [],
-        cropDatas: [],
+        cropDataList: [],
+        isChangeImg: false,
       };
     },
     computed: {
-      dialog: {
+      dialogFlag: {
         get() {
-          return this.value;
+          return this.showDialogFlag;
         },
         set(value) {
-          this.$emit("input", value);
+          this.$emit('input', value);
         },
       },
     },
   
     methods: {
-      change() {
-        this.cropImage();
-      },
-      ClickEmitImg() {
-        const data = [];
-        for (let i = 0; i <= this.arrayImg?.length - 1; i++) {
-          if (this.arrayImg[i]?.id === this.cropImgs[i]?.id) {
-            data.push(this.cropImgs[i]);
-          } else {
-            data.push(this.arrayImg[i]);
+      /**
+       * Trigger this event before crop event
+       * Init crop data in case of first loading
+       * Set crop info by previous crop data when clicking img on preview
+       */
+      onReady() {
+        if (this.cropDataList.length) {
+          // Check to set previous crop data
+          if (this.isChangeImg) {
+            // Set crop info
+            const cropInfo = this.cropDataList[this.activeIndex];
+            if (cropInfo) {
+              // Set crop info
+              if (cropInfo.cropData) {
+                this.$refs.cropper.setCropBoxData(cropInfo.cropData);
+              }
+
+              // Set rotate info
+              if (cropInfo.rotateInfo) {
+                this.$refs.cropper.rotate(cropInfo.rotateInfo);
+              }
+
+              // Set zoom & rotate info
+              if (cropInfo.canvasInfo) {
+                this.$refs.cropper.setCanvasData(cropInfo.canvasInfo);
+              }
+
+              // Save crop image
+              if (cropInfo.url) {
+                this.saveCropImage(this.activeIndex);
+              }
+            }
+
+            this.isChangeImg = false;
           }
-        }
-        this.$emit("handleSaveImg", data);
-      },
-  
-      handleBackAndNext(item, control) {
-        if (control !== true) {
-          if (this.activeIndex === 0) {
-            return;
-          }
-          this.activeIndex = this.activeIndex - 1;
         } else {
-          if (this.activeIndex + 1 === item?.length) {
-            return;
-          }
-          this.activeIndex = this.activeIndex + 1;
-        }
-        this.cropImage();
-        this.$refs.cropper.reset();
-        this.saveCropData();
-        if (typeof FileReader === "function") {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            this.$refs.cropper.replace(event.target.result);
-          };
-          reader.readAsDataURL(this.arrayImg[this.activeIndex]?.file);
+          // First load, init crop info for all images
+          this.saveCropInfo(this.activeIndex);
         }
       },
-      cropImage() {
-        const cropCanvas = this.$refs.cropper.getCroppedCanvas();
-        const id = this.arrayImg[this.activeIndex]?.id;
-        const name = this.arrayImg[this.activeIndex]?.fileName;
+
+      /**
+       * Save crop info
+       */
+      onCropEnd() {
+        this.saveCropInfo(this.activeIndex);
+      },
+
+      /**
+       * Save crop info
+       */
+      onResetCropInfo() {
+        // Reset crop info
+        this.$refs.cropper.reset();
+
+        // Save reset info
+        this.saveCropInfo(this.activeIndex);
+
+        // Save zoom & rotate info
+        this.saveCanvasInfo(this.activeIndex);
+
+        // Save crop image after resetting
+        this.saveCropImage(this.activeIndex);
+      },
+
+      /**
+       * Zoom image
+       * Zoom in: +20
+       * Zoom out: -20
+       */
+      onZoom(percent) {
+        // Zoom image
+        this.$refs.cropper.relativeZoom(percent);
+
+        // Save zoom info
+        this.saveCanvasInfo(this.activeIndex);
+      },
+
+      /**
+       * Rotate image
+       * Left: -45
+       * Right: 45
+       */
+      onRotate(degree) {
+        // Rotate image
+        this.$refs.cropper.rotate(degree);
+
+        // Save canvas info for rotate
+        this.saveCanvasInfo(this.activeIndex);
+      },
+
+      /**
+       * Change image for preview
+       * @param item Img info
+       * @param index Index of image list
+       */
+      onChangePreviewImage(item, index) {
+        // Check img info
+        if (!item) return;
+
+        // Set current index
+        this.activeIndex = index;
+
+        // Set flag change img to load crop, zoom & rotate
+        this.isChangeImg = true;
+
+        // Set crop img
+        this.$refs.cropper.replace(item.url);
+      },
+
+      /**
+       * Back image
+       * @param index Index of image list
+       */
+      onBackImage(index) {
+        const previousIndex = index - 1;
+        if (previousIndex < 0) return;
+
+        // Set current index
+        this.activeIndex = previousIndex;
+
+        // Back image
+        this.onChangePreviewImage(
+          this.arrayImg[previousIndex],
+          previousIndex,
+        );
+      },
+
+      /**
+       * Next image
+       * @param index Index of image list
+       */
+      onNextImage(index) {
+        const nextIndex = index + 1;
+        if (nextIndex > this.arrayImg.length - 1) return;
+
+        // Set current index
+        this.activeIndex = nextIndex;
+
+        // Next image
+        this.onChangePreviewImage(
+          this.arrayImg[nextIndex],
+          nextIndex,
+        );
+      },
+
+      /**
+       * Destroy crop when close or cancel
+       */
+      onCloseDialog() {
+        // Init data
+        this.activeIndex = 0;
+        this.cropDataList = [];
+
+        // Destroy crop
+        this.$refs.cropper.destroy();
+
+        // Set data null
+        this.$refs.cropper.setData(null);
+
+        // Close dialog
+        this.dialogFlag = false;
+      },
+
+      /**
+       * Save image info after adjusting
+       */
+      async onSaveImage() {
+        let dataList = [];
+
+        // Get image info
+        this.arrayImg.forEach((item, i) => {
+          const cropInfo = this.cropDataList[i];
+
+          // Get image info
+          let imageInfo = Object.assign({}, item);
+          if (cropInfo) {
+            if (cropInfo.url) {
+              imageInfo.url = cropInfo.url;
+              imageInfo.file = cropInfo.file;
+            }
+
+            // TODO need to confirm this information needed or not
+            // cropData, canvasInfo, rotateInfo
+            if (cropInfo.cropData) {
+              imageInfo.cropData = cropInfo.cropData;
+            }
+
+            if (cropInfo.canvasInfo) {
+              imageInfo.canvasInfo = cropInfo.canvasInfo;
+            }
+
+            if (cropInfo.rotateInfo) {
+              imageInfo.rotateInfo = cropInfo.rotateInfo;
+            }
+          }
+
+          dataList.push(imageInfo);
+        });
+
+        // Save image info
+        await this.saveFunc(dataList);
+
+        // Close dialog
+        this.onCloseDialog();
+      },
+
+      /**
+       * Set crop data { width, height, left, top }
+       * @param index Index of image list
+       */
+      saveCropInfo(index) {
+        let cropInfo = this.$refs.cropper.getCropBoxData();
+        if (this.cropDataList.length) {
+          // Update crop data
+          this.cropDataList = this.cropDataList.map((item, i) => {
+            if (index === i) {
+              item.cropData = cropInfo;
+            }
+
+            return item;
+          });
+        } else {
+          // Init crop data
+          let tmpCropDataList = [];
+
+          const arrayLength = this.arrayImg.length;
+          for (let i = 0; i < arrayLength; i++) {
+            tmpCropDataList[i] = {
+              cropData: cropInfo,
+            };
+          }
+
+          this.cropDataList = tmpCropDataList;
+        }
+
+        // Save crop image
+        this.saveCropImage(index);
+      },
+
+      /**
+       * Save canvas info including zoom & rotate
+       * @param index Index of image list
+       */
+      saveCanvasInfo(index) {
+        // Skip save canvas if there is no image
+        if (!this.cropDataList.length) return; 
+
+        this.cropDataList = this.cropDataList.map((item, i) => {
+          if (index === i) {
+            item.canvasInfo = this.$refs.cropper.getCanvasData();
+
+            // Get rotate info
+            const data = this.$refs.cropper.getData();
+            if (data) {
+              item.rotateInfo = data.rotate;
+            }
+          }
+
+          return item;
+        });
+
+        // Save crop image
+        this.saveCropImage(index);
+      },
+
+      /**
+       * Save crop image info
+       * @param index Index of image list
+       */
+      saveCropImage(index) {
+        const cropCanvas = this.$refs.cropper.getCroppedCanvas(),
+          imageInfo = this.arrayImg[index];
+        
+        // Skip getting crop info
+        if (!cropCanvas || !imageInfo) return;
+
+        // Get crop image
         cropCanvas.toBlob(
           (blob) => {
-            const file = new File([blob], `${Date.now + id}.png`, {
-              type: "image/png",
+            const fileInfo = new File([blob], imageInfo.fileName, {
+              type: imageInfo.type,
               lastModified: Date.now(),
               size: blob.size,
             });
-            if (!this.cropImgs.some((item) => item.index === this.activeIndex)) {
-              this.cropImgs = [
-                ...this.cropImgs,
-                {
-                  index: this.activeIndex,
-                  url: cropCanvas.toDataURL(),
-                  id: id,
-                  fileName: name,
-                  file: file,
-                },
-              ];
-            } else {
-              this.cropImgs = [
-                ...this.cropImgs.filter(
-                  (item) => item.index !== this.activeIndex
-                ),
-                {
-                  index: this.activeIndex,
-                  url: cropCanvas.toDataURL(),
-                  id: id,
-                  fileName: name,
-                  file: file,
-                },
-              ];
-            }
+
+            // Set crop file info
+            this.cropDataList = this.cropDataList.map((item, i) => {
+              if (i === index) {
+                item.url = cropCanvas.toDataURL();
+                item.file = fileInfo;
+              }
+
+              return item;
+            });
           },
-          "image/png",
-          1
+          imageInfo.type,
+          1,
         );
       },
-  
-      reset() {
-        this.$refs.cropper.reset();
-      },
-      rotate(deg) {
-        this.$refs.cropper.rotate(deg);
-      },
-  
-      setData() {
-        if (!this.data) return;
-        this.$refs.cropper.setData(JSON.parse(this.data));
-      },
-  
-      saveCropData() {
-        const setData = {
-          index: this.activeIndex,
-          data: this.$refs.cropper.getData(),
-        };
-        if (!this.cropDatas.some((item) => item.index === this.activeIndex)) {
-          this.cropDatas = [...this.cropDatas, setData];
-        } else {
-          this.cropDatas = [
-            ...this.cropDatas.filter((item) => item.index !== this.activeIndex),
-            setData,
-          ];
-        }
-      },
-  
-      setCropData(index) {
-        if (this.cropDatas.some((item) => item.index === index)) {
-          const data = this.cropDatas.find((item) => item.index === index).data;
-          this.$refs.cropper.setData(data);
-        }
-      },
-  
-      handleItem(item, index) {
-        this.cropImage();
-        this.saveCropData();
-        this.activeIndex = index;
-        if (typeof FileReader === "function") {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            console.log("1",event);
-            this.$refs.cropper.replace(event.target.result);
-          };
-          reader.readAsDataURL(item?.file);
-        }
-      },
-  
-      zoom(percent) {
-        this.$refs.cropper.relativeZoom(percent);
+
+      /**
+       * Init crop when open crop dialog when loading the send times or above
+       */
+      initCrop() {
+        this.$refs.cropper.initCrop();
       },
     },
   };
