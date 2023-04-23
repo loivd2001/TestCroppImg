@@ -598,18 +598,24 @@
   }
 
   .wrapper-preview {
+    // Add height for wrapper and div inside to avoid padding preview area
+    height: 80px;
+
+    > div {
+      height: 80px;
+    }
+
     img {
       width: 80px;
       height: 80px;
       object-fit: cover;
+      border: 2px solid rgb(56, 53, 53);
     }
 
     &.active-preview {
-      border: 4px solid red;
-    }
-
-    &.no-active-preview {
-      border: 2px solid rgb(56, 53, 53);
+      img {
+        border: 4px solid red;
+      }
     }
   }
 </style>
