@@ -407,6 +407,9 @@
           this.cropDataList = tmpCropDataList;
         }
 
+        // Save canvas image (when dragging image)
+        this.saveCanvasInfo(index);
+
         // Save crop image
         this.saveCropImage(index);
       },
