@@ -606,8 +606,6 @@
   }
 
   .wrapper-preview {
-    border: 2px solid rgb(56, 53, 53);
-
     > div {
       width: 80px;
       height: 80px;
@@ -622,6 +620,10 @@
 
     &.active-preview {
       border: 4px solid red;
+    }
+
+    &.no-active-preview {
+      padding: 4px 0;
     }
   }
 </style>
