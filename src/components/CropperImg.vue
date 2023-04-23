@@ -28,11 +28,13 @@
                 <vue-cropper
                   style="height: 320px"
                   ref="cropper"
+                  preview=".preview__cropper"
                   :aspectRatio="1/1"
                   :initialAspectRatio="1/1"
                   :src="arrayImg[activeIndex]?.url"
                   :zoomOnTouch="false"
                   :zoomOnWheel="false"
+                  :dragMode="'move'"
                   @ready="onReady"
                   @cropend="onCropEnd"
                 />
@@ -101,12 +103,12 @@
                 ? 'wrapper-preview active-preview'
                 : 'wrapper-preview no-active-preview'"
             >
-              <div :class="activeIndex === index ? 'preview__cropper' : ''">
-                <img
-                  v-if="cropDataList[index] && cropDataList[index].url"
-                  :src="cropDataList[index].url"
-                />
-                <img v-else :src="item.url" />
+              <div v-if="activeIndex === index" class="preview__cropper"></div>
+              <div v-else-if="cropDataList[index] && cropDataList[index].url">
+                <img :src="cropDataList[index].url"/>
+              </div>
+              <div v-else>
+                <img :src="item.url" />
               </div>
             </div>
           </div>
@@ -440,7 +442,10 @@
        * @param index Index of image list
        */
       saveCropImage(index) {
-        const cropCanvas = this.$refs.cropper.getCroppedCanvas(),
+        const cropCanvas = this.$refs.cropper.getCroppedCanvas({
+            maxWidth: 4096,
+            maxHeight: 4096,
+          }),
           imageInfo = this.arrayImg[index];
         
         // Skip getting crop info
@@ -598,24 +603,22 @@
   }
 
   .wrapper-preview {
-    // Add height for wrapper and div inside to avoid padding preview area
-    height: 80px;
+    border: 2px solid rgb(56, 53, 53);
 
     > div {
+      width: 80px;
       height: 80px;
+      overflow: hidden;
     }
 
     img {
       width: 80px;
       height: 80px;
       object-fit: cover;
-      border: 2px solid rgb(56, 53, 53);
     }
 
     &.active-preview {
-      img {
-        border: 4px solid red;
-      }
+      border: 4px solid red;
     }
   }
 </style>
