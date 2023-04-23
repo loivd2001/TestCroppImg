@@ -199,9 +199,7 @@
               }
 
               // Save crop image
-              if (cropInfo.url) {
-                this.saveCropImage(this.activeIndex);
-              }
+              this.saveCropImage(this.activeIndex);
             }
 
             this.isChangeImg = false;
