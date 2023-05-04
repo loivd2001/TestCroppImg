@@ -12,6 +12,7 @@
     "sass": "^1.62.0",
     "vue": "^2.6.14",
     "vue-cropperjs": "^4.1.0",
+    "vue-loading-overlay": "^3.4.3",
     "vuetify": "^2.5.11"
   },
   "devDependencies": {

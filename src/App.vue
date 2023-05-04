@@ -64,9 +64,16 @@ export default {
      * Select image file
      */
     onChangeFile(e) {
+      const loader = this.$loading.show({
+        loader: 'dots',
+      });
+
       const files = e.target.files,
         fileLength = files.length;
       this.arrayImg = [];
+
+      // Flag to use counting onload img
+      let onLoadCount = 0;
       for (let i = 0; i < fileLength; i++) {
         const fileInfo = files[i];
 
@@ -85,22 +92,30 @@ export default {
             updatedImg.url = event.target.result;
             this.arrayImg[i] = updatedImg;
 
-            if (i >= fileLength - 1) {
+            // Avoid async onload image
+            onLoadCount++;
+
+            // Check to show dialog
+            if (onLoadCount >= fileLength) {
               // Change img for cropper
               if (this.isFirstLoading) {
                 this.isFirstLoading = false;
               } else {
-                this.$refs.cropComponent.initCrop();
-                this.$refs.cropComponent.onChangePreviewImage(this.arrayImg[0], 0);
+                this.$refs.cropComponent.showLoading();
+                this.$refs.cropComponent.replaceImage(this.arrayImg[0].url);
               }
 
               this.showDialogFlag = true;
+
+              setTimeout(() => {
+                loader.hide();
+              }, 200);
             }
           };
           reader.readAsDataURL(fileInfo);
         }
       }
-    }
+    },
   }
 }
 </script>

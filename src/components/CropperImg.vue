@@ -24,7 +24,7 @@
                   {{ `${arrayImg[activeIndex]?.fileName}` }}</span
                 >
               </div>
-              <div>
+              <div class="wrapper-cropper" ref="wrapper_cropper">
                 <vue-cropper
                   style="height: 320px"
                   ref="cropper"
@@ -63,7 +63,7 @@
                 dark
                 @click.prevent="onZoom(0.2)"
                 ><v-icon dark> mdi-magnify-plus-outline </v-icon>
-                zomm in
+                zoom in
               </v-btn>
               <v-btn
                 color="secondary"
@@ -72,7 +72,7 @@
                 @click.prevent="onZoom(-0.2)"
               >
                 <v-icon dark> mdi-magnify-minus-outline </v-icon
-                >zomm out
+                >zoom out
               </v-btn>
             </div>
             <div class="cropper-img__content__wrapper-btn-action__rotate-img">
@@ -131,7 +131,6 @@
   
   <script>
   import VueCropper from "vue-cropperjs";
-  import "cropperjs/dist/cropper.css";
   
   export default {
     components: {
@@ -159,6 +158,10 @@
         activeIndex: 0,
         cropDataList: [],
         isChangeImg: false,
+        loader: null,
+        // Flag to use get the cropped image for preview and upload
+        isChangeCropper: false,
+        indexList: [],
       };
     },
     computed: {
@@ -186,29 +189,24 @@
             const cropInfo = this.cropDataList[this.activeIndex];
             if (cropInfo) {
               // Set crop info
-              if (cropInfo.cropData) {
-                this.$refs.cropper.setCropBoxData(cropInfo.cropData);
-              }
-
-              // Set rotate info
-              if (cropInfo.rotateInfo) {
-                this.$refs.cropper.rotate(cropInfo.rotateInfo);
-              }
-
-              // Set zoom & rotate info
-              if (cropInfo.canvasInfo) {
-                this.$refs.cropper.setCanvasData(cropInfo.canvasInfo);
-              }
-
-              // Save crop image
-              this.saveCropImage(this.activeIndex);
+              this.$refs.cropper.setCropBoxData(cropInfo.cropData)
+                .rotate(cropInfo.rotateInfo)
+                .setCanvasData(cropInfo.canvasInfo);
             }
 
             this.isChangeImg = false;
+
+            this.isChangeCropper = false;
           }
         } else {
           // First load, init crop info for all images
           this.saveCropInfo(this.activeIndex);
+        }
+
+        if (this.loader && this.loader.isActive) {
+          setTimeout(() => {
+            this.loader.hide()
+          }, 200);
         }
       },
 
@@ -217,6 +215,8 @@
        */
       onCropEnd() {
         this.saveCropInfo(this.activeIndex);
+
+        this.isChangeCropper = true;
       },
 
       /**
@@ -229,11 +229,7 @@
         // Save reset info
         this.saveCropInfo(this.activeIndex);
 
-        // Save zoom & rotate info
-        this.saveCanvasInfo(this.activeIndex);
-
-        // Save crop image after resetting
-        this.saveCropImage(this.activeIndex);
+        this.isChangeCropper = true;
       },
 
       /**
@@ -247,6 +243,8 @@
 
         // Save zoom info
         this.saveCanvasInfo(this.activeIndex);
+
+        this.isChangeCropper = true;
       },
 
       /**
@@ -260,6 +258,8 @@
 
         // Save canvas info for rotate
         this.saveCanvasInfo(this.activeIndex);
+
+        this.isChangeCropper = true;
       },
 
       /**
@@ -269,16 +269,31 @@
        */
       onChangePreviewImage(item, index) {
         // Check img info
-        if (!item) return;
+        if (!item || index === this.activeIndex) return;
 
-        // Set current index
-        this.activeIndex = index;
+        this.loader = this.$loading.show({
+          loader: 'dots',
+          container: this.$refs.wrapper_cropper,
+        });
 
-        // Set flag change img to load crop, zoom & rotate
-        this.isChangeImg = true;
+        const existsIndex = this.indexList.includes(this.activeIndex);
+        if (this.isChangeCropper || !existsIndex) {
+          if (!existsIndex) {
+            this.indexList.push(this.activeIndex);
+          }
+          // Get cropped canvas
+          this.saveCropImage(this.activeIndex, index, item);
+        } else {
+          // Set current index
+          this.activeIndex = index;
 
-        // Set crop img
-        this.$refs.cropper.replace(item.url);
+          // Set flag change img to load crop, zoom & rotate
+          this.isChangeImg = true;
+
+          // Set crop img
+          // Trigger event ready
+          this.$refs.cropper.replace(item.url);
+        }
       },
 
       /**
@@ -288,9 +303,6 @@
       onBackImage(index) {
         const previousIndex = index - 1;
         if (previousIndex < 0) return;
-
-        // Set current index
-        this.activeIndex = previousIndex;
 
         // Back image
         this.onChangePreviewImage(
@@ -307,9 +319,6 @@
         const nextIndex = index + 1;
         if (nextIndex > this.arrayImg.length - 1) return;
 
-        // Set current index
-        this.activeIndex = nextIndex;
-
         // Next image
         this.onChangePreviewImage(
           this.arrayImg[nextIndex],
@@ -324,12 +333,12 @@
         // Init data
         this.activeIndex = 0;
         this.cropDataList = [];
+        this.isChangeCropper = false;
+        this.indexList = [];
 
-        // Destroy crop
-        this.$refs.cropper.destroy();
-
-        // Set data null
+        // Clear crop
         this.$refs.cropper.setData(null);
+        this.$refs.cropper.clear();
 
         // Close dialog
         this.dialogFlag = false;
@@ -351,20 +360,6 @@
             if (cropInfo.url) {
               imageInfo.url = cropInfo.url;
               imageInfo.file = cropInfo.file;
-            }
-
-            // TODO need to confirm this information needed or not
-            // cropData, canvasInfo, rotateInfo
-            if (cropInfo.cropData) {
-              imageInfo.cropData = cropInfo.cropData;
-            }
-
-            if (cropInfo.canvasInfo) {
-              imageInfo.canvasInfo = cropInfo.canvasInfo;
-            }
-
-            if (cropInfo.rotateInfo) {
-              imageInfo.rotateInfo = cropInfo.rotateInfo;
             }
           }
 
@@ -409,9 +404,6 @@
 
         // Save canvas image (when dragging image)
         this.saveCanvasInfo(index);
-
-        // Save crop image
-        this.saveCropImage(index);
       },
 
       /**
@@ -424,39 +416,40 @@
 
         this.cropDataList = this.cropDataList.map((item, i) => {
           if (index === i) {
-            item.canvasInfo = this.$refs.cropper.getCanvasData();
-
-            // Get rotate info
             const data = this.$refs.cropper.getData();
-            if (data) {
-              item.rotateInfo = data.rotate;
-            }
+            item = {
+              ...item,
+              canvasInfo: this.$refs.cropper.getCanvasData(),
+              rotateInfo: data.rotate,
+            };
           }
 
           return item;
         });
-
-        // Save crop image
-        this.saveCropImage(index);
       },
 
       /**
        * Save crop image info
-       * @param index Index of image list
+       * @param currentIndex Index of image list
+       * @param newIndex Changed index
+       * @param newItem Changed image
        */
-      saveCropImage(index) {
-        const cropCanvas = this.$refs.cropper.getCroppedCanvas({
-            maxWidth: 4096,
-            maxHeight: 4096,
+      saveCropImage(currentIndex, newIndex, newItem) {
+        const MAX_SIZE = 1920,
+          cropCanvas = this.$refs.cropper.getCroppedCanvas({
+            maxWidth: MAX_SIZE,
+            maxHeight: MAX_SIZE,
+            imageSmoothingEnabled: false,
+            imageSmoothingQuality: 'high',
           }),
-          imageInfo = this.arrayImg[index];
+          imageInfo = this.arrayImg[currentIndex];
         
         // Skip getting crop info
         if (!cropCanvas || !imageInfo) return;
 
         // Get crop image
         cropCanvas.toBlob(
-          (blob) => {
+          async (blob) => {
             const fileInfo = new File([blob], imageInfo.fileName, {
               type: imageInfo.type,
               lastModified: Date.now(),
@@ -465,24 +458,45 @@
 
             // Set crop file info
             this.cropDataList = this.cropDataList.map((item, i) => {
-              if (i === index) {
+              if (i === currentIndex) {
                 item.url = cropCanvas.toDataURL(imageInfo.type);
                 item.file = fileInfo;
               }
 
               return item;
             });
+
+            // Set current index
+            this.activeIndex = newIndex;
+
+            // Replace img
+            this.replaceImage(newItem.url);
           },
           imageInfo.type,
         );
       },
 
       /**
-       * Init crop when open crop dialog when loading the send times or above
+       * Replace crop img
+       * @param url Image url
        */
-      initCrop() {
-        this.$refs.cropper.initCrop();
+      replaceImage(url) {
+        this.isChangeImg = true;
+        this.$refs.cropper.replace(url);
       },
+
+      /**
+       * Show loading
+       */
+      showLoading() {
+        this.loader = this.$loading.show({
+          loader: 'dots',
+          container: this.$refs.wrapper_cropper,
+        });
+      },
+    },
+    mounted() {
+      this.showLoading();
     },
   };
   </script>
@@ -605,6 +619,12 @@
     }
   }
 
+  .wrapper-cropper {
+    > div > img {
+      display: none;
+    }
+  }
+
   .wrapper-preview {
     > div {
       width: 80px;
@@ -623,7 +643,7 @@
     }
 
     &.no-active-preview {
-      padding: 4px 0;
+      border: 4px solid #fff;
     }
   }
 </style>
