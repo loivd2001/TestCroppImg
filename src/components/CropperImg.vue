@@ -185,13 +185,18 @@
         if (this.cropDataList.length) {
           // Check to set previous crop data
           if (this.isChangeImg) {
-            // Set crop info
+            // Check to init crop box for image if necessary
             const cropInfo = this.cropDataList[this.activeIndex];
-            if (cropInfo) {
+            if (this.cropDataList[this.activeIndex]) {
               // Set crop info
               this.$refs.cropper.setCropBoxData(cropInfo.cropData)
                 .rotate(cropInfo.rotateInfo)
                 .setCanvasData(cropInfo.canvasInfo);
+            } else {
+              // Reset crop info based on the image
+              this.$refs.cropper.reset();
+              // Save crop info
+              this.saveCropInfo(this.activeIndex);
             }
 
             this.isChangeImg = false;
@@ -378,8 +383,8 @@
        * @param index Index of image list
        */
       saveCropInfo(index) {
-        let cropInfo = this.$refs.cropper.getCropBoxData();
-        if (this.cropDataList.length) {
+        const cropInfo = this.$refs.cropper.getCropBoxData();
+        if (this.cropDataList[index]) {
           // Update crop data
           this.cropDataList = this.cropDataList.map((item, i) => {
             if (index === i) {
@@ -389,17 +394,10 @@
             return item;
           });
         } else {
-          // Init crop data
-          let tmpCropDataList = [];
-
-          const arrayLength = this.arrayImg.length;
-          for (let i = 0; i < arrayLength; i++) {
-            tmpCropDataList[i] = {
-              cropData: cropInfo,
-            };
-          }
-
-          this.cropDataList = tmpCropDataList;
+          // Init crop box based on the image
+          this.cropDataList[index] = {
+            cropData: cropInfo,
+          };
         }
 
         // Save canvas image (when dragging image)
