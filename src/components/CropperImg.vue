@@ -35,6 +35,7 @@
                   :zoomOnTouch="false"
                   :zoomOnWheel="false"
                   :dragMode="'move'"
+                  :autoCropArea="1"
                   @ready="onReady"
                   @cropend="onCropEnd"
                 />
